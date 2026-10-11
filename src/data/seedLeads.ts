@@ -161,7 +161,7 @@ export const INITIAL_SEED_LEADS: Lead[] = [
     },
     email: 'marcus@vancerealtygroup.com',
     emailVerified: true,
-    phone: '+1 (305) 555-8921',
+    phone: '+1 (305) 748-2914',
     phoneVerified: true,
     website: 'https://vancerealtygroup.com',
     profileUrl: 'https://facebook.com/groups/realestateusa/posts/98124912',

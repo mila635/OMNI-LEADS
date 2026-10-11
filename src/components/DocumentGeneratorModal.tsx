@@ -21,9 +21,9 @@ import {
   Send,
   FileType
 } from 'lucide-react';
-import { Lead, AgencyProfile } from '../types';
-import { downloadWordDocument, triggerPrintablePdf } from '../utils/exportUtils';
+import { downloadWordDocument, triggerPrintablePdf, downloadFormattedPdf } from '../utils/exportUtils';
 import { SendProposalEmailModal } from './SendProposalEmailModal';
+import { Lead, AgencyProfile } from '../types';
 
 interface DocumentGeneratorModalProps {
   lead: Lead | null;
@@ -1333,20 +1333,36 @@ Date: ${new Date().toLocaleDateString()}`;
               <span>Export Word (.doc)</span>
             </button>
 
-            {/* PDF Export Button */}
+            {/* Direct Vector PDF Download Button */}
+            <button
+              type="button"
+              id="btn-download-pdf-direct"
+              onClick={() => downloadFormattedPdf(lead, activeAgency, docType, generatedContent)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                isLight
+                  ? 'bg-rose-50 border-rose-300 text-rose-700 hover:bg-rose-100'
+                  : 'bg-rose-950/40 border-rose-500/50 text-rose-300 hover:bg-rose-900/50'
+              }`}
+              title="Download structured multi-page PDF directly to device"
+            >
+              <Download className="w-3.5 h-3.5 text-rose-500" />
+              <span>Download PDF (.pdf)</span>
+            </button>
+
+            {/* Print / Printable PDF Button */}
             <button
               type="button"
               id="btn-export-pdf"
               onClick={() => triggerPrintablePdf(lead, activeAgency, docType)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
                 isLight
-                  ? 'bg-white border-rose-300 text-rose-700 hover:bg-rose-50'
-                  : 'bg-[#18181B] border-rose-500/40 text-rose-300 hover:bg-rose-950/30'
+                  ? 'bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50'
+                  : 'bg-[#18181B] border-[#27272A] text-zinc-300 hover:text-white'
               }`}
-              title="Export as high-resolution printable PDF"
+              title="Open high-resolution print window for PDF printing"
             >
-              <Printer className="w-3.5 h-3.5 text-rose-500" />
-              <span>Export PDF / Print</span>
+              <Printer className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Print / Preview</span>
             </button>
 
             {/* Direct Email to Client Button */}

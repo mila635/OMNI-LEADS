@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { PLATFORM_CONFIG } from '../data/seedLeads';
 import { PlatformSource, Lead } from '../types';
+import { PlatformLogo } from './PlatformLogo';
 
 export interface ExtractionBatch {
   id: string;
@@ -190,7 +191,10 @@ export const ExtractionHistoryView: React.FC<ExtractionHistoryViewProps> = ({
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-white truncate">{config.name}</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <PlatformLogo source={key} size={15} />
+                    <span className="text-xs font-bold text-white truncate">{config.name}</span>
+                  </div>
                   <span
                     className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
                       count > 0 ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-500'
@@ -264,7 +268,8 @@ export const ExtractionHistoryView: React.FC<ExtractionHistoryViewProps> = ({
                         {new Date(batch.timestamp).toLocaleDateString()} {new Date(batch.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </td>
                       <td className="p-3">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 font-semibold text-[11px]">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 font-semibold text-[11px]">
+                          <PlatformLogo source={batch.platform} size={13} />
                           {platConf.name}
                         </span>
                       </td>

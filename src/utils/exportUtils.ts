@@ -1,4 +1,6 @@
 import { Lead, AgencyProfile } from '../types';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 
 /**
  * Generates an executive Microsoft Word (.doc) compatible HTML document
@@ -357,6 +359,212 @@ export function downloadWordDocument(lead: Lead, agency?: AgencyProfile, docType
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Generates and downloads a clean, beautifully formatted, multi-page vector PDF file
+ * using jsPDF & HTML2Canvas, with a fallback to direct print dialog.
+ */
+export async function downloadFormattedPdf(
+  lead: Lead,
+  agency?: AgencyProfile,
+  docType = 'proposal',
+  customMarkdown?: string
+): Promise<void> {
+  const agencyName = agency?.name || 'ADS RESULTS 24/7';
+  const agencyWebsite = agency?.website || 'https://adsresults247.com';
+  const agencySender = agency?.senderName || 'Marcus Vance';
+  const agencyRole = agency?.senderRole || 'Head of Client Growth & Partner';
+  const agencyEmail = agency?.senderEmail || 'marcus@adsresults247.com';
+  const agencyPhone = agency?.senderPhone || '+1 (800) 459-2470';
+  const agencyTagline = agency?.tagline || 'Strategic Customer Acquisition & Automation Infrastructure';
+  const guaranteeText = agency?.guaranteeTerms || lead?.proposal?.guaranteeTerms || 'Guaranteed minimum 20 verified sales appointments in first 30 days or we work free until achieved.';
+  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  // 1. Build an off-screen container rendered at standard 794px width (A4 standard at 96 DPI)
+  const container = document.createElement('div');
+  container.id = 'executive-pdf-export-container';
+  container.style.position = 'fixed';
+  container.style.left = '0';
+  container.style.top = '0';
+  container.style.zIndex = '-9999';
+  container.style.width = '794px';
+  container.style.background = '#ffffff';
+  container.style.color = '#0f172a';
+  container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  container.style.padding = '36px 40px';
+  container.style.boxSizing = 'border-box';
+  container.style.lineHeight = '1.5';
+  container.style.fontSize = '12px';
+  container.style.pointerEvents = 'none';
+
+  container.innerHTML = `
+    <!-- Letterhead Header -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #4338ca; padding-bottom: 16px; margin-bottom: 20px;">
+      <div>
+        <div style="font-size: 22px; font-weight: 800; color: #3730a3; letter-spacing: -0.5px;">${agencyName}</div>
+        <div style="font-size: 11px; color: #64748b; margin-top: 2px;">${agencyTagline}</div>
+        <div style="font-size: 10px; color: #475569; margin-top: 6px; line-height: 1.4;">
+          <strong>Direct:</strong> ${agencyPhone} &nbsp;|&nbsp; <strong>Email:</strong> ${agencyEmail}<br>
+          <strong>Website:</strong> ${agencyWebsite}
+        </div>
+      </div>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px; text-align: left; min-width: 240px;">
+        <span style="display: inline-block; background: #e0e7ff; color: #3730a3; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: bold; text-transform: uppercase;">
+          CONFIDENTIAL GROWTH PROPOSAL
+        </span>
+        <div style="font-size: 13px; font-weight: bold; color: #0f172a; margin-top: 4px;">${lead.companyName}</div>
+        <div style="font-size: 10px; color: #475569;">Attn: ${lead.name} (${lead.title || 'Managing Principal'})</div>
+        <div style="font-size: 9.5px; color: #64748b;">${lead.location?.formatted || 'United States'}</div>
+        <div style="font-size: 9px; color: #94a3b8; margin-top: 4px;">Date: ${today}</div>
+      </div>
+    </div>
+
+    <!-- Section 1: Executive Overview -->
+    <div style="font-size: 13px; font-weight: bold; color: #1e1b4b; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 3px; margin: 16px 0 8px 0;">
+      1. EXECUTIVE OVERVIEW & STRATEGIC ENGAGEMENT
+    </div>
+    <p style="font-size: 11px; color: #334155; margin: 0 0 12px 0;">
+      ${lead.proposal?.executiveSummary || `This strategic growth engagement is engineered exclusively for <strong>${lead.companyName}</strong> by <strong>${agencyName}</strong>. Our diagnostic reveals high inquiry callback latency and missing retargeting infrastructure resulting in significant customer leakage. This proposal outlines guaranteed appointment acquisition with sub-60s speed-to-lead automation.`}
+    </p>
+
+    <!-- Section 2: Diagnosed Bottlenecks -->
+    <div style="font-size: 13px; font-weight: bold; color: #1e1b4b; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 3px; margin: 16px 0 8px 0;">
+      2. DIAGNOSED OPERATIONAL BOTTLENECKS & REVENUE LEAKAGE
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+      ${(lead.painPoints || []).map((pp, i) => `
+        <div style="border: 1px solid #e2e8f0; border-left: 3.5px solid #ef4444; border-radius: 4px; padding: 8px 10px; background: #ffffff;">
+          <div style="font-size: 11px; font-weight: bold; color: #b91c1c;">Bottleneck ${i + 1}: ${pp.title}</div>
+          <div style="font-size: 9px; color: #64748b; margin: 2px 0;">Severity: <strong>${pp.severity}</strong> &nbsp;|&nbsp; Est. Leakage: <strong>${pp.estimatedRevenueLoss}</strong></div>
+          <div style="font-size: 10px; color: #334155; margin: 3px 0;">${pp.description}</div>
+          <div style="font-size: 9.5px; color: #047857; margin-top: 3px;"><strong>Prescribed Solution:</strong> ${pp.recommendedFix}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Section 3: Projected ROI -->
+    <div style="font-size: 13px; font-weight: bold; color: #1e1b4b; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 3px; margin: 16px 0 8px 0;">
+      3. PROJECTED FINANCIAL RETURN ON INVESTMENT (ROI)
+    </div>
+    <table style="width: 100%; border-collapse: collapse; margin: 8px 0 14px 0; font-size: 10px;">
+      <thead>
+        <tr style="background: #f1f5f9;">
+          <th style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: bold; color: #0f172a;">Performance Indicator</th>
+          <th style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: bold; color: #0f172a;">Current Baseline</th>
+          <th style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: bold; color: #0f172a;">With ${agencyName}</th>
+          <th style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: right; font-weight: bold; color: #047857;">Net Projected Gain</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(lead.proposal?.projectedRoi || [
+          { metric: 'Inquiry Response Latency', currentEstimated: '42 mins (High drop-off)', projectedWithSolution: 'Under 45 Seconds (AI Bot)', financialGain: '+$140,000 / yr' },
+          { metric: 'Qualified Monthly Sales Meetings', currentEstimated: '6 - 8 calls/mo', projectedWithSolution: '24 - 32 booked meetings/mo', financialGain: '+$210,000 / yr' },
+          { metric: 'Dormant Customer Reactivation', currentEstimated: '0% recovered', projectedWithSolution: '15 - 20 closed clients', financialGain: '+$95,000 / yr' },
+        ]).map((r) => `
+          <tr>
+            <td style="border: 1px solid #e2e8f0; padding: 6px 8px; color: #1e293b;"><strong>${r.metric}</strong></td>
+            <td style="border: 1px solid #e2e8f0; padding: 6px 8px; color: #475569;">${r.currentEstimated}</td>
+            <td style="border: 1px solid #e2e8f0; padding: 6px 8px; color: #4338ca; font-weight: 600;">${r.projectedWithSolution}</td>
+            <td style="border: 1px solid #e2e8f0; padding: 6px 8px; text-align: right; color: #047857; font-weight: bold;">${r.financialGain}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+
+    <!-- Section 4: Investment Packages -->
+    <div style="font-size: 13px; font-weight: bold; color: #1e1b4b; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 3px; margin: 16px 0 8px 0;">
+      4. COMMERCIAL INVESTMENT PACKAGES
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px;">
+      ${(agency?.pricingTiers || lead.proposal?.pricingTiers || [
+        { name: 'Growth Accelerate', price: '$2,450', billingPeriod: '/month', description: 'Single channel ad management + 24/7 AI lead response bot.', features: ['Meta Ads Management', '24/7 AI Concierge', 'Monthly Strategy Reviews'] },
+        { name: 'Omni-Dominance (Recommended)', price: '$4,800', billingPeriod: '/month', description: 'Full multi-platform acquisition with guaranteed appointments.', features: ['Meta + Google Ads', 'AI Voice & SMS Booker', 'Reactivation Flow'] },
+        { name: 'Enterprise Scale', price: '$8,500', billingPeriod: '/month', description: 'Complete market domination with geographic territory exclusivity.', features: ['Territory Exclusivity', 'Custom Vector Model', 'VIP Support'] },
+      ]).map((t) => `
+        <div style="border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px 10px; background: #f8fafc;">
+          <div style="font-size: 11px; font-weight: bold; color: #0f172a;">${t.name}</div>
+          <div style="font-size: 13px; font-weight: bold; color: #4338ca; margin: 2px 0;">${t.price} <span style="font-size: 8.5px; font-weight: normal; color: #64748b;">${t.billingPeriod}</span></div>
+          <div style="font-size: 9px; color: #475569; margin-bottom: 4px;">${t.description}</div>
+          <ul style="margin: 0; padding-left: 12px; font-size: 9px; color: #334155;">
+            ${t.features.map((f: string) => `<li>${f}</li>`).join('')}
+          </ul>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Guarantee Box -->
+    <div style="background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 4px; padding: 8px 12px; margin: 12px 0; color: #065f46; font-size: 10px;">
+      <strong style="font-size: 10.5px;">🛡️ Direct Performance SLA Guarantee:</strong>
+      <div style="margin-top: 2px;">${guaranteeText}</div>
+    </div>
+
+    <!-- Signatures Block -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 20px; padding-top: 14px; border-top: 1.5px solid #cbd5e1; font-size: 10px;">
+      <div>
+        <div style="font-weight: bold; color: #4338ca;">Authorized for ${agencyName}:</div>
+        <div style="font-size: 10px; font-weight: bold; margin-top: 3px;">${agencySender}</div>
+        <div style="color: #64748b;">${agencyRole}</div>
+        <div style="border-top: 1px solid #94a3b8; margin-top: 24px; padding-top: 3px; font-size: 8.5px; color: #64748b;">
+          Authorized Signatory (Digital Verification #ADV-247)
+        </div>
+      </div>
+      <div>
+        <div style="font-weight: bold; color: #0f172a;">Accepted for ${lead.companyName}:</div>
+        <div style="font-size: 10px; font-weight: bold; margin-top: 3px;">${lead.name}</div>
+        <div style="color: #64748b;">${lead.title || 'Managing Principal'}</div>
+        <div style="border-top: 1px solid #94a3b8; margin-top: 24px; padding-top: 3px; font-size: 8.5px; color: #64748b;">
+          Client Acceptance Signature & Date
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(container);
+
+  try {
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      windowWidth: 1024,
+      windowHeight: 1400,
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const imgWidth = 210; // A4 width in mm
+    const pageHeight = 297; // A4 height in mm
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    let heightLeft = imgHeight;
+    let position = 0;
+
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const cleanName = (lead.companyName || 'Enterprise').replace(/[^a-zA-Z0-9_-]/g, '_');
+    pdf.save(`${cleanName}_Strategic_Growth_Proposal.pdf`);
+  } catch (err) {
+    console.error('jsPDF generation failed, launching printable fallback:', err);
+    triggerPrintablePdf(lead, agency, docType);
+  } finally {
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
+    }
+  }
 }
 
 /**

@@ -782,12 +782,12 @@ app.post("/api/agencies", (req: Request, res: Response) => {
       id,
       name: profile.name,
       tagline: profile.tagline || "Performance Growth & AI Sales Automation",
-      website: profile.website || "https://example.com",
+      website: profile.website || "https://adsresults247.com",
       logoUrl: profile.logoUrl || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=256&q=80",
       senderName: profile.senderName || "Managing Partner",
       senderRole: profile.senderRole || "Head of Growth",
       senderEmail: profile.senderEmail || "growth@company.com",
-      senderPhone: profile.senderPhone || "+1 (800) 555-0199",
+      senderPhone: profile.senderPhone || "+1 (800) 459-2470",
       companyBio: profile.companyBio || `${profile.name} is a dedicated growth and marketing agency providing high-impact digital solutions.`,
       coreServices: profile.coreServices && profile.coreServices.length > 0 ? profile.coreServices : [
         "Paid Ads Management (Meta & Google)",
@@ -954,7 +954,7 @@ app.post("/api/leads/import", async (req: Request, res: Response) => {
         },
         email: raw.email || `contact@${company.toLowerCase().replace(/[^a-z0-9]/g, "") || "company"}.com`,
         emailVerified: !!raw.email,
-        phone: raw.phone || "+1 (555) 019-2834",
+        phone: raw.phone || "+1 (305) 748-2914",
         phoneVerified: !!raw.phone,
         website: raw.website || `https://${company.toLowerCase().replace(/[^a-z0-9]/g, "") || "company"}.com`,
         rating: Number(raw.rating) || 4.7,
@@ -1227,7 +1227,7 @@ app.post("/api/scrape/website", async (req: Request, res: Response) => {
           title: `${cleanName} - Official Commercial Portal`,
           description: `Active business portal for ${cleanName} providing commercial services with direct contact points.`,
           emailsFound: [`contact@${domain}`, `info@${domain}`],
-          phonesFound: ["+1 (800) 555-0199"],
+          phonesFound: ["+1 (800) 459-2470"],
           techStack: ["WordPress", "Google Tag Manager", "Meta Pixel", "Cloudflare"],
           socialLinks: { linkedin: `https://linkedin.com/company/${domain.split(".")[0]}` },
           speedScore: 88,
@@ -1936,7 +1936,7 @@ Return ONLY valid JSON matching this schema:
       }
 
       // Ensure phone is properly formatted for the country
-      const leadPhone = (lead.phone && !lead.phone.includes("555-0199") && !lead.phone.includes("+1 (300)"))
+      const leadPhone = (lead.phone && !lead.phone.includes("555-") && !lead.phone.includes("+1 (300)"))
         ? lead.phone
         : geoProfile.phoneGenerator(idx);
 

@@ -53,7 +53,8 @@ import {
   PlatformSource,
   LeadCategory
 } from '../types';
-import { downloadWordDocument, triggerPrintablePdf } from '../utils/exportUtils';
+import { downloadWordDocument, triggerPrintablePdf, downloadFormattedPdf } from '../utils/exportUtils';
+import { PlatformLogo } from './PlatformLogo';
 
 export type AgentExecutionMode = 'turbo' | 'deep_research' | 'copilot' | 'sniper_outreach';
 export type AgentLayoutMode = 'drawer' | 'fullscreen' | 'docked_split';
@@ -1232,12 +1233,24 @@ I am connected to your workspace and active business profile (${activeAgency.nam
                             {leads.length > 0 && (
                               <button
                                 type="button"
+                                onClick={() => downloadFormattedPdf(leads[0], activeAgency, 'proposal')}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-[10px] transition-colors cursor-pointer shadow-xs"
+                                title="Download structured multi-page PDF directly to device"
+                              >
+                                <Download className="w-3 h-3" />
+                                <span>Download PDF (.pdf)</span>
+                              </button>
+                            )}
+
+                            {leads.length > 0 && (
+                              <button
+                                type="button"
                                 onClick={() => triggerPrintablePdf(leads[0], activeAgency, 'proposal')}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold text-[10px] transition-colors cursor-pointer"
                                 title="Print / Save PDF with full branding"
                               >
                                 <Printer className="w-3 h-3" />
-                                <span>PDF</span>
+                                <span>Print</span>
                               </button>
                             )}
                           </div>

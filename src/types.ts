@@ -357,3 +357,17 @@ export interface SystemMetricNode {
   throughputRps: number;
   details: Record<string, string | number>;
 }
+
+export interface UserAccount {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  companyName: string;
+  role: string;
+  avatarUrl?: string;
+  authProvider: 'google' | 'phone' | 'email';
+  plan: 'Starter' | 'Growth' | 'Agency Scale' | 'Enterprise';
+  createdAt: string;
+}
+

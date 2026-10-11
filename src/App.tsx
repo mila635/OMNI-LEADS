@@ -18,15 +18,31 @@ import { FloatingExtractionWidget } from './components/FloatingExtractionWidget'
 import { ImportLeadsModal } from './components/ImportLeadsModal';
 import { AddManualLeadModal } from './components/AddManualLeadModal';
 import { NexusAutonomousAgent } from './components/NexusAutonomousAgent';
+import { NexusChatWorkspace } from './components/NexusChatWorkspace';
+import { PlatformLogo } from './components/PlatformLogo';
+import { LandingPage } from './components/LandingPage';
+import { AuthModal } from './components/AuthModal';
 import {
   Lead,
   LeadFilterState,
   ScrapingTaskParams,
   ScrapingJob,
   AgencyProfile,
-  PlatformSource
+  PlatformSource,
+  UserAccount
 } from './types';
 import { INITIAL_SEED_LEADS, DEFAULT_AGENCIES } from './data/seedLeads';
+import {
+  getCurrentUser,
+  setCurrentUser,
+  getUserLeads,
+  setUserLeads,
+  getUserAgencies,
+  setUserAgencies,
+  getUserActiveAgencyId,
+  setUserActiveAgencyId,
+  logoutUser
+} from './utils/userStorage';
 import {
   LayoutGrid,
   List,
@@ -43,8 +59,18 @@ import {
 } from 'lucide-react';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('leads');
-  const [leads, setLeads] = useState<Lead[]>(INITIAL_SEED_LEADS);
+  // Authentication & Per-User Isolation
+  const [currentUser, setCurrentUserAccount] = useState<UserAccount | null>(() => getCurrentUser());
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<ActiveTab>('chat');
+  const [leads, setLeads] = useState<Lead[]>(() => {
+    const user = getCurrentUser();
+    if (user) {
+      return getUserLeads(user.id);
+    }
+    return [];
+  });
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -73,14 +99,64 @@ export function App() {
     }
   }, [theme]);
 
-  // Multi-Agency State
-  const [agencies, setAgencies] = useState<AgencyProfile[]>(DEFAULT_AGENCIES);
-  const [activeAgencyId, setActiveAgencyId] = useState<string>('agency-ads-results-247');
+  // Synchronize leads per-user (User can access own created data only)
+  useEffect(() => {
+    if (currentUser) {
+      setUserLeads(currentUser.id, leads);
+    }
+  }, [leads, currentUser]);
+
+  // Multi-Agency State per user
+  const [agencies, setAgencies] = useState<AgencyProfile[]>(() => {
+    const user = getCurrentUser();
+    if (user) {
+      return getUserAgencies(user.id);
+    }
+    return DEFAULT_AGENCIES;
+  });
+  const [activeAgencyId, setActiveAgencyId] = useState<string>(() => {
+    const user = getCurrentUser();
+    if (user) {
+      return getUserActiveAgencyId(user.id);
+    }
+    return 'agency-ads-results-247';
+  });
   const [agencyModalOpen, setAgencyModalOpen] = useState(false);
+
+  // Sync agencies per user
+  useEffect(() => {
+    if (currentUser) {
+      setUserAgencies(currentUser.id, agencies);
+    }
+  }, [agencies, currentUser]);
+
+  useEffect(() => {
+    if (currentUser) {
+      setUserActiveAgencyId(currentUser.id, activeAgencyId);
+    }
+  }, [activeAgencyId, currentUser]);
 
   const activeAgency = useMemo(() => {
     return agencies.find((a) => a.id === activeAgencyId) || agencies[0] || DEFAULT_AGENCIES[0];
   }, [agencies, activeAgencyId]);
+
+  // Handle Login / Registration success
+  const handleLoginSuccess = (user: UserAccount) => {
+    setCurrentUserAccount(user);
+    setCurrentUser(user);
+    const userLeads = getUserLeads(user.id);
+    setLeads(userLeads);
+    setAgencies(getUserAgencies(user.id));
+    setActiveAgencyId(getUserActiveAgencyId(user.id));
+    setActiveTab('chat');
+    setSelectedLead(null);
+  };
+
+  const handleSignOut = () => {
+    logoutUser();
+    setCurrentUserAccount(null);
+    setSelectedLead(null);
+  };
 
   // Modals state
   const [docModalLead, setDocModalLead] = useState<Lead | null>(null);
@@ -116,7 +192,7 @@ export function App() {
 
   // Fetch initial agencies and leads from backend
   useEffect(() => {
-    // Fetch agencies
+    // Only fetch saved agency profiles
     fetch('/api/agencies')
       .then((res) => res.json())
       .then((data) => {
@@ -128,18 +204,6 @@ export function App() {
         }
       })
       .catch((err) => console.log('Offline agencies loaded:', err));
-
-    // Fetch leads
-    fetch('/api/leads')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.leads?.length) {
-          setLeads(data.leads);
-        }
-      })
-      .catch((err) => {
-        console.log('Using initial seed leads:', err);
-      });
   }, []);
 
   const handleSaveAgency = async (agency: AgencyProfile) => {
@@ -306,14 +370,13 @@ export function App() {
   };
 
   const handleClearAllLeads = async () => {
-    if (window.confirm('Are you sure you want to clear all leads in this view?')) {
-      setLeads([]);
-      setSelectedLeadIds(new Set());
-      try {
-        await fetch('/api/leads', { method: 'DELETE' });
-      } catch (e) {
-        console.error(e);
-      }
+    setLeads([]);
+    setSelectedLeadIds(new Set());
+    try {
+      localStorage.removeItem('leadgen_active_leads_v5');
+      await fetch('/api/leads', { method: 'DELETE' });
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -420,11 +483,22 @@ export function App() {
     setActiveTab('leads');
   };
 
+  // If not authenticated, show professional Enterprise Landing Page
+  if (!currentUser) {
+    return (
+      <LandingPage
+        onLoginSuccess={handleLoginSuccess}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
   return (
     <div className={`min-h-screen transition-colors duration-200 ${
-      theme === 'dark' ? 'bg-[#0A0A0B] text-[#E4E4E7]' : 'bg-[#F4F4F6] text-[#18181B]'
+      theme === 'dark' ? 'bg-[#0A0A0B] text-[#E4E4E7]' : 'bg-[#F8F9FA] text-black'
     } font-sans selection:bg-indigo-600 selection:text-white flex flex-col`}>
-      {/* Top Global Navigation */}
+      {/* Top Global Navigation with Single Dropdown & User Profile */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={(tab) => {
@@ -435,6 +509,9 @@ export function App() {
         hotLeadsCount={hotLeadsCount}
         agencies={agencies}
         activeAgency={activeAgency}
+        currentUser={currentUser}
+        onSignOut={handleSignOut}
+        onOpenAuthModal={() => setAuthModalOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
         onSelectAgency={handleSelectAgency}
@@ -443,8 +520,12 @@ export function App() {
         onOpenAgent={() => setIsAgentOpen(true)}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-5">
+      {/* Main Container: Non-scrollable viewport fitting when in chat workspace */}
+      <main className={`flex-1 max-w-7xl w-full mx-auto ${
+        activeTab === 'chat' && !selectedLead
+          ? 'px-2 sm:px-4 py-2 sm:py-2.5 h-[calc(100vh-4.25rem)] overflow-hidden flex flex-col'
+          : 'px-3 sm:px-6 py-4 sm:py-5'
+      }`}>
         {/* VIEW 1: DETAILED LEAD INTELLIGENCE PAGE */}
         {selectedLead ? (
           <LeadDetailPage
@@ -458,6 +539,24 @@ export function App() {
           />
         ) : (
           <>
+            {/* VIEW 0: CHAT INTERFACE - NON-SCROLLABLE FULL VIEW */}
+            {activeTab === 'chat' && (
+              <div className="w-full h-full flex flex-col overflow-hidden">
+                <NexusChatWorkspace
+                  onStartScrape={handleStartScrape}
+                  isScraping={isScraping}
+                  totalLeadsCount={leads.length}
+                  activeAgency={activeAgency}
+                  agencies={agencies}
+                  onSelectAgency={handleSelectAgency}
+                  onOpenAgencyModal={() => setAgencyModalOpen(true)}
+                  onNavigateToResults={() => setActiveTab('leads')}
+                  theme={theme}
+                  setFilters={setFilters}
+                />
+              </div>
+            )}
+
             {/* VIEW 2: LEADS COMMAND CENTER */}
             {activeTab === 'leads' && (
               <div className="space-y-4">
@@ -474,6 +573,7 @@ export function App() {
                   onOpenImportModal={() => setImportModalOpen(true)}
                   onOpenAddModal={() => setAddManualModalOpen(true)}
                   onOpenExportModal={() => setExportModalOpen(true)}
+                  onNavigateToChat={() => setActiveTab('chat')}
                   theme={theme}
                 />
 
@@ -557,8 +657,94 @@ export function App() {
                   </div>
                 </div>
 
-                {/* Leads Grid or Table */}
-                {viewMode === 'cards' ? (
+                {/* Leads Grid, Table or Real Pipeline Ready State */}
+                {filteredLeads.length === 0 ? (
+                  leads.length === 0 ? (
+                    <div
+                      className={`py-20 px-6 rounded-2xl border text-center space-y-4 my-4 ${
+                        theme === 'dark'
+                          ? 'bg-[#0E0E11] border-[#27272A] text-zinc-100'
+                          : 'bg-white border-zinc-300 text-black shadow-xs'
+                      }`}
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-600 flex items-center justify-center mx-auto">
+                        <Database className="w-6 h-6" />
+                      </div>
+                      <div className="max-w-md mx-auto space-y-1.5">
+                        <h3 className={`text-base font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                          No Leads in Pipeline
+                        </h3>
+                        <p className={`text-xs leading-relaxed ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-700'}`}>
+                          Your corporate workspace is ready for real-time lead acquisition. Launch an extraction in Nexus AI Chat to populate your pipeline with verified contacts and tailored dossiers.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('chat')}
+                          className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-indigo-600/20 cursor-pointer transition-all transform hover:-translate-y-0.5"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                          <span>Extract Leads in Nexus AI Chat</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setImportModalOpen(true)}
+                          className={`px-4 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
+                            theme === 'dark'
+                              ? 'bg-zinc-900 border-zinc-700 text-zinc-200 hover:bg-zinc-800'
+                              : 'bg-zinc-100 hover:bg-zinc-200 border-zinc-300 text-black'
+                          }`}
+                        >
+                          Import Existing CSV/XLSX
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className={`p-12 rounded-2xl border text-center space-y-3 my-4 ${
+                        theme === 'dark'
+                          ? 'bg-[#0E0E11] border-[#27272A] text-zinc-300'
+                          : 'bg-white border-zinc-300 text-black'
+                      }`}
+                    >
+                      <Filter className="w-8 h-8 text-zinc-400 mx-auto" />
+                      <h4 className="font-bold text-sm">No Leads Match Your Search</h4>
+                      <p className={`text-xs ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-700'}`}>
+                        Try modifying your search keywords or resetting active filters.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFilters({
+                            keyword: '',
+                            sources: [],
+                            categories: [],
+                            countries: [],
+                            temperature: [],
+                            minScore: 0,
+                            requireEmail: false,
+                            requirePhone: false,
+                            requireWebsite: false,
+                            requireVerified: false,
+                            minRating: 0,
+                            minReviews: 0,
+                            revenueRange: 'all',
+                            employeeRange: 'all',
+                            techStack: [],
+                            status: 'All',
+                            sortBy: 'score_desc',
+                          })
+                        }
+                        className="px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold cursor-pointer"
+                      >
+                        Reset All Filters
+                      </button>
+                    </div>
+                  )
+                ) : viewMode === 'cards' ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {filteredLeads.map((lead) => (
                       <LeadCard
@@ -567,6 +753,7 @@ export function App() {
                         onSelectLead={(l) => setSelectedLead(l)}
                         isSelected={selectedLeadIds.has(lead.id)}
                         onToggleSelect={handleToggleSelectLead}
+                        theme={theme}
                       />
                     ))}
                   </div>
@@ -577,6 +764,7 @@ export function App() {
                     onToggleSelect={handleToggleSelectLead}
                     onToggleAll={handleToggleSelectAll}
                     onSelectLead={(l) => setSelectedLead(l)}
+                    theme={theme}
                   />
                 )}
               </div>
@@ -625,15 +813,17 @@ export function App() {
         }}
       />
 
-      {/* Persistent Floating Extraction Status Widget */}
-      <FloatingExtractionWidget
-        job={activeScrapeJob}
-        onOpenDetails={() => setShowFullScrapeModal(true)}
-        onDismiss={() => {
-          setActiveScrapeJob(null);
-          setIsScraping(false);
-        }}
-      />
+      {/* Persistent Floating Extraction Status Widget - Only outside chat view */}
+      {activeTab !== 'chat' && (
+        <FloatingExtractionWidget
+          job={activeScrapeJob}
+          onOpenDetails={() => setShowFullScrapeModal(true)}
+          onDismiss={() => {
+            setActiveScrapeJob(null);
+            setIsScraping(false);
+          }}
+        />
+      )}
 
       {/* CSV / Excel Spreadsheet Import & AI Enrichment Modal */}
       <ImportLeadsModal
@@ -670,47 +860,60 @@ export function App() {
         onDeleteAgency={handleDeleteAgency}
       />
 
-      {/* Nexus AI Autonomous Operator (Floating Bottom-Right Button & Command Center) */}
-      <NexusAutonomousAgent
-        isOpen={isAgentOpen}
-        onToggle={() => setIsAgentOpen(!isAgentOpen)}
-        leads={leads}
-        setLeads={setLeads}
-        activeAgency={activeAgency}
-        onStartScrape={(p) => handleStartScrape(p, false)}
-        isScraping={isScraping}
-        activeScrapeJob={activeScrapeJob}
-        filters={filters}
-        setFilters={setFilters}
-        selectedLead={selectedLead}
-        setSelectedLead={setSelectedLead}
-        onOpenDocGenerator={handleOpenDocModal}
-        onOpenCrmExport={() => setExportModalOpen(true)}
-        onOpenAgencyModal={() => setAgencyModalOpen(true)}
-        activeTab={activeTab}
-        setActiveTab={(tab) => {
-          setActiveTab(tab);
-          if (selectedLead) setSelectedLead(null);
-        }}
+      {/* User Switch & Registration Modal */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onSuccess={handleLoginSuccess}
+        initialMode="register"
         theme={theme}
       />
 
-      {/* Footer */}
-      <footer className={`border-t py-4 mt-8 text-center text-xs ${
-        theme === 'dark' ? 'border-[#27272A] bg-[#09090B] text-zinc-500' : 'border-zinc-300 bg-white text-zinc-600'
-      }`}>
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2">
-            <span className={`font-bold ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>LEADGEN PRO</span>
-            <span>• 20-Source Live Grounding & Sales Intelligence Engine</span>
+      {/* Nexus AI Autonomous Operator (Floating Bottom-Right Button & Command Center) - Hidden on default Nexus AI chat page */}
+      {activeTab !== 'chat' && (
+        <NexusAutonomousAgent
+          isOpen={isAgentOpen}
+          onToggle={() => setIsAgentOpen(!isAgentOpen)}
+          leads={leads}
+          setLeads={setLeads}
+          activeAgency={activeAgency}
+          onStartScrape={(p) => handleStartScrape(p, false)}
+          isScraping={isScraping}
+          activeScrapeJob={activeScrapeJob}
+          filters={filters}
+          setFilters={setFilters}
+          selectedLead={selectedLead}
+          setSelectedLead={setSelectedLead}
+          onOpenDocGenerator={handleOpenDocModal}
+          onOpenCrmExport={() => setExportModalOpen(true)}
+          onOpenAgencyModal={() => setAgencyModalOpen(true)}
+          activeTab={activeTab}
+          setActiveTab={(tab) => {
+            setActiveTab(tab);
+            if (selectedLead) setSelectedLead(null);
+          }}
+          theme={theme}
+        />
+      )}
+
+      {/* Footer - Only visible outside full-height chat workspace */}
+      {activeTab !== 'chat' && (
+        <footer className={`border-t py-4 mt-8 text-center text-xs ${
+          theme === 'dark' ? 'border-[#27272A] bg-[#09090B] text-zinc-500' : 'border-zinc-300 bg-white text-zinc-600'
+        }`}>
+          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2">
+              <span className={`font-bold ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>LEADGEN PRO</span>
+              <span>• 20-Source Live Grounding & Sales Intelligence Engine</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-mono">
+              <span className="text-emerald-400 font-bold">● Live Search Grounding Active</span>
+              <span>•</span>
+              <span>Branded for {activeAgency.name}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-xs font-mono">
-            <span className="text-emerald-400 font-bold">● Live Search Grounding Active</span>
-            <span>•</span>
-            <span>Branded for {activeAgency.name}</span>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }

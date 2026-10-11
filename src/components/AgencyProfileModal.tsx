@@ -87,7 +87,7 @@ export const AgencyProfileModal: React.FC<AgencyProfileModalProps> = ({
     setSenderName('Alex Morgan');
     setSenderRole('Head of Growth');
     setSenderEmail('alex@company.com');
-    setSenderPhone('+1 (800) 555-0199');
+    setSenderPhone('+1 (800) 459-2470');
     setCompanyBio('Full-service revenue generation and AI automated lead infrastructure agency.');
     setServicesInput(
       'Omnichannel Paid Advertising (Meta & Google Ads)\n24/7 Sub-60s AI Speed-to-Lead Receptionist\nHigh-Converting Landing Pages & Funnel Optimization\nCRM Pipeline Automation & Ingestion'
